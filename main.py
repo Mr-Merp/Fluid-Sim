@@ -7,7 +7,7 @@ import particle_prop
 
 class Fluid_Sim:
     #Contains the main loop and the fluid simulation in general
-    def __init__(self, num_p: int = 100, width: int = 1500, height: int = 1000, fps: int = 60):
+    def __init__(self, num_p: int = 100, width: int = 600, height: int = 1000, fps: int = 60):
         # initialize pygame
         pygame.init()
 
@@ -69,7 +69,9 @@ class Fluid_Sim:
         shape.color = (255, 0, 0, 100)
         shape.elasticity = 0.7
         shape.friction = 0.7
+        shape.filter = pymunk.ShapeFilter(categories = 1, mask = pymunk.ShapeFilter.ALL_MASKS() ^ 1)
         self.space.add(body, shape)
+        self.particle_list.append(body)
         return shape
 
     def reset(self) -> None:
@@ -85,6 +87,44 @@ class Fluid_Sim:
         self.space.debug_draw(self.draw_options)
         pygame.display.update()
 
+    def create_particle_grid(self):
+        radius = 5
+        # Calculate the size of a perfectly square grid that would fit the particles
+        grid_size = int(math.sqrt(self.num_p))
+
+        # Calculate remaining particles that won't fit in the perfect square
+        remaining = self.num_p - (grid_size * grid_size)
+
+        # Calculate particle spacing (assuming radius is the space between particles)
+        spacing = radius * 3
+
+        # Calculate starting position to center the grid
+        start_x = (self.WIDTH - (grid_size * spacing)) / 2 + radius
+        start_y = (self.HEIGHT - (grid_size * spacing)) / 2 + radius
+
+        # Create the main square grid
+        for row in range(grid_size):
+            for col in range(grid_size):
+                x = start_x + (col * spacing)
+                y = start_y + (row * spacing)
+                self.new_particle(int(x), int(y), radius)
+
+        # Handle remaining particles by adding them as additional rows on top
+        if remaining > 0:
+            extra_row_y = start_y - spacing
+            extra_row_x = start_x
+            particles_in_row = 0
+
+            for i in range(remaining):
+                if particles_in_row >= grid_size:
+                    extra_row_y -= spacing
+                    particles_in_row = 0
+                    extra_row_x = start_x
+
+                self.new_particle(int(extra_row_x), int(extra_row_y), radius)
+                extra_row_x += spacing
+                particles_in_row += 1
+
     def start(self) -> None:
         # runs the main loop
 
@@ -93,6 +133,9 @@ class Fluid_Sim:
 
         #setting the gravity
         self.space.gravity = (0, 981)
+
+        #create the particle grid
+        self.create_particle_grid()
 
         # main loop to run the simulation including quit and pause functions
         while self.run:
@@ -103,8 +146,6 @@ class Fluid_Sim:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
                         self.pause()
-                    if event.key == pygame.K_c:
-                        self.particle_list.append(self.new_particle(300, 300, 5))
                     if event.key == pygame.K_z:
                         self.reset()
 
@@ -116,6 +157,6 @@ class Fluid_Sim:
 
 
 if __name__ == "__main__":
-    fluid = Fluid_Sim()
+    fluid = Fluid_Sim(1000)
     fluid.start()
 
