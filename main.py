@@ -7,14 +7,16 @@ import particle_prop
 
 class Fluid_Sim:
     #Contains the main loop and the fluid simulation in general
-    def __init__(self, num_p: int = 100, width: int = 600, height: int = 1000, fps: int = 60):
+    def __init__(self, num_p: int = 100, width: int = 640, height: int = 1040, fps: int = 60):
         # initialize pygame
         pygame.init()
 
         #set the number of particles in the simulation
         self.num_p = num_p
         self.particle_list = []
-        self.quad_list = []
+        self.grid_dict = {}
+        self.grid_width = int((width - 40) // 100)
+        self.grid_height = int((height - 40) // 100)
 
         # standard pygame window setup
         self.WIDTH, self.HEIGHT = width, height
@@ -71,23 +73,41 @@ class Fluid_Sim:
         shape.friction = 0.7
         shape.filter = pymunk.ShapeFilter(categories = 1, mask = pymunk.ShapeFilter.ALL_MASKS() ^ 1)
         self.space.add(body, shape)
-        self.particle_list.append(body)
+        self.particle_list.append(shape)
         return shape
+
+    def reset_grid(self) -> None:
+        loop = self.grid_height * self.grid_width
+        for i in range(loop):
+            self.grid_dict[i] = []
+
+    def update_grid(self) -> None:
+        for i in range(len(self.particle_list)):
+            x, y = particle_prop.relative_position(self.particle_list[i])
+            if x >= self.WIDTH - 40: x = int(self.grid_width * 100 - 1)
+            if y >= self.HEIGHT - 40: y = int(self.grid_height * 100 - 1)
+            grid_num = int((y // 100) * self.grid_width + (x // 100))
+            self.grid_dict[grid_num].append(i)
+
+    def calculate_density(self, shape: pymunk.Circle) -> float:
+        pass
 
     def reset(self) -> None:
         for particle in self.particle_list:
             self.space.remove(particle)
 
         self.particle_list = []
-        self.quad_list = []
+        self.reset_grid()
+        self.particle_start()
 
     def update_new_frame(self) -> None:
         #basically the update call
         self.window.fill("black")
         self.space.debug_draw(self.draw_options)
         pygame.display.update()
+        self.reset_grid()
 
-    def create_particle_grid(self):
+    def particle_start(self) -> None:
         radius = 5
         # Calculate the size of a perfectly square grid that would fit the particles
         grid_size = int(math.sqrt(self.num_p))
@@ -135,14 +155,22 @@ class Fluid_Sim:
         self.space.gravity = (0, 981)
 
         #create the particle grid
-        self.create_particle_grid()
+        self.particle_start()
+
+        #setting up grid dictionary
+        self.reset_grid()
 
         # main loop to run the simulation including quit and pause functions
         while self.run:
+            self.update_grid()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.run = False
                     break
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    print(self.grid_width, self.grid_height)
+                    for grid, particle in self.grid_dict.items():
+                        print(grid, ": ", particle)
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
                         self.pause()
