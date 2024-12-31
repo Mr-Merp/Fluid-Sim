@@ -3,16 +3,18 @@ import pymunk
 import pygame
 import math
 import pymunk.pygame_util
+from pymunk.vec2d import Vec2d
 import particle_prop
 import time
 import random
 
 class Fluid_Sim:
     #Contains the main loop and the fluid simulation in general
-    def __init__(self, num_p: int = 400, width: int = 1540, height: int = 1040, fps: int = 60):
+    def __init__(self, num_p: int = 400, width: int = 640, height: int = 1040, fps: int = 60):
         # initialize pygame
         pygame.init()
         self.grid_size = 50
+        self.radius = 5
 
         #set the number of particles in the simulation
         self.num_p = num_p
@@ -51,6 +53,7 @@ class Fluid_Sim:
                     if event.key == pygame.K_SPACE:
                         paused = False
                         break
+
 
     def setup_environment(self) -> None:
         #creates the walls/bounds of the environment
@@ -91,7 +94,7 @@ class Fluid_Sim:
         for i in range(loop):
             self.grid_dict[i] = []
 
-    def get_current_grid(self, x: int, y: int) -> int:
+    def get_current_grid(self, x: float, y: float) -> int:
         #given the relative x and y positions, determine the cell that the point is in
         if x >= self.WIDTH - 40: x = int(self.grid_width * self.grid_size - 1)
         if y >= self.HEIGHT - 40: y = int(self.grid_height * self.grid_size - 1)
@@ -101,14 +104,14 @@ class Fluid_Sim:
 
     def update_grid(self) -> None:
         #updates what particles are at what cell in the grid and the densities of each particle
-        start_time = time.time()
+        #start_time = time.time()
         for i in range(len(self.particle_list)):
             x, y = particle_prop.relative_position(self.particle_list[i])
             grid_num = self.get_current_grid(x, y)
             self.grid_list.append(grid_num)
             self.grid_dict[grid_num].append(i)
         self.update_particle_density()
-        print(time.time() - start_time)
+        #print(time.time() - start_time)
 
     def grids_to_search(self, grid_num: int) -> list[int]:
         #finds the cells surrounding the current cell
@@ -140,25 +143,50 @@ class Fluid_Sim:
 
     def calculate_density(self, particle_num: int) -> float:
         density = 0
+        count = 0
         search_grids = self.grids_to_search(self.grid_list[particle_num])
-        mass = 100
+        mass = 1000
         #print(particle_num, search_grids)
-        #start_time = time.time()
+        start_time = time.time()
         for grid in search_grids:
             for particle in self.grid_dict[grid]:
-                if particle != particle_num:
-                    distance = particle_prop.distance(self.particle_list[particle], self.particle_list[particle_num])
-                    influence = particle_prop.smoothing_function(float(self.grid_size), distance)
+                #if count == 0: print("yar")
+                count = 1
+                distance = particle_prop.distance(self.particle_list[particle], self.particle_list[particle_num])
+                influence = particle_prop.smoothing_function(float(self.grid_size), distance)
 
-                    density += influence * mass
-
-        #print(time.time() - start_time, density)
+                density += influence * mass
+        #print(time.time() - start_time, density, particle_num)
         #self.pause()
         return density
+
+    def calculate_pressure(self, particle_num: int) -> Vec2d:
+        pressure = Vec2d(0, 0)
+        search_grids = self.grids_to_search(self.grid_list[particle_num])
+        mass = 1000
+        # print(particle_num, search_grids)
+        # start_time = time.time()
+        for grid in search_grids:
+            for particle in self.grid_dict[grid]:
+                if particle != particle_num and self.density_list[particle] != 0:
+                    distance = particle_prop.distance(self.particle_list[particle_num], self.particle_list[particle])
+                    direction = (self.particle_list[particle].body.position - self.particle_list[particle_num].body.position) / distance
+                    slope = particle_prop.smoothing_function_derivative(distance, self.grid_size)
+                    pressure += particle_prop.shared_pressure(self.density_list[particle], self.density_list[particle_num]) * direction * slope * mass / self.density_list[particle]
+        return pressure
+
 
     def update_particle_density(self) -> None:
         for i in range(len(self.particle_list)):
             self.density_list.append(self.calculate_density(i))
+        for i in range(len(self.particle_list)):
+            lister = list(self.particle_list[i].body.velocity)
+            pressureX, pressureY = self.calculate_pressure(i)
+            lister[0] += pressureX / self.density_list[i]
+            lister[1] += pressureY / self.density_list[i]
+
+            vel_tuple = tuple(lister)
+            self.particle_list[i].body.velocity = vel_tuple
 
     def reset(self) -> None:
         #reset the simulation back to its starting positions
@@ -181,6 +209,7 @@ class Fluid_Sim:
             self.new_particle(random.randint(20, self.WIDTH - 20), random.randint(20, self.HEIGHT-20), 5)
 
 
+
     def start(self) -> None:
         # runs the main loop
 
@@ -188,7 +217,7 @@ class Fluid_Sim:
         self.setup_environment()
 
         #setting the gravity
-        self.space.gravity = (0, 981)
+        #self.space.gravity = (0, 981)
 
         #create the particle grid
         self.particle_start()
@@ -198,6 +227,7 @@ class Fluid_Sim:
 
         # main loop to run the simulation including quit and pause functions
         while self.run:
+            self.update_new_frame()
             self.update_grid()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -207,6 +237,10 @@ class Fluid_Sim:
                     x, y = pygame.mouse.get_pos()
                     x -= 20
                     y -= 20
+                    for i in range(len(self.particle_list)):
+                        self.particle_list[i].color = (255, 0, 0, 100)
+                        if abs(x - self.particle_list[i].body.position[0] + 20) < 10 and abs(y - self.particle_list[i].body.position[1] + 20) < 10:
+                            print(i, self.density_list[i])
                     for grid in self.grids_to_search(self.get_current_grid(x, y)):
                         for i in self.grid_dict[grid]:
                             self.particle_list[i].color = (0, 255, 0, 100)
@@ -215,9 +249,8 @@ class Fluid_Sim:
                         self.pause()
                     if event.key == pygame.K_z:
                         self.reset()
-            self.pause()
+            #self.pause()
 
-            self.update_new_frame()
             self.space.step(self.dt)
             self.clock.tick(self.fps)
 
