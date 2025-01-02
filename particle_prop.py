@@ -54,3 +54,14 @@ def shared_pressure(a: float, b: float) -> float:
     a = density_to_pressure(a)
     b = density_to_pressure(b)
     return (a + b) / 2
+
+def color_change(speed_vec) -> tuple[int, int, int, int]:
+    velocity = math.sqrt(speed_vec[0] ** 2 + speed_vec[1] ** 2)
+    if velocity <= 30:
+        return 255, 0, 0, 100
+    elif velocity >= 400:
+        return 255, 255, 255, 100
+    else:
+        step_multiplier = (velocity - 30) / 370
+        total_multi = 255 * step_multiplier
+        return 255, int(total_multi), int(total_multi), 100

@@ -54,7 +54,6 @@ class Fluid_Sim:
                         paused = False
                         break
 
-
     def setup_environment(self) -> None:
         #creates the walls/bounds of the environment
         walls = [
@@ -79,8 +78,8 @@ class Fluid_Sim:
         shape = pymunk.Circle(body, radius)
         shape.mass = 100
         shape.color = (255, 0, 0, 100)
-        shape.elasticity = 0.5
-        shape.friction = 0.5
+        shape.elasticity = 0.2
+        shape.friction = 0.7
         #shape.filter = pymunk.ShapeFilter(categories = 1, mask = pymunk.ShapeFilter.ALL_MASKS() ^ 1)
         self.space.add(body, shape)
         self.particle_list.append(shape)
@@ -172,8 +171,8 @@ class Fluid_Sim:
                     pressure += particle_prop.shared_pressure(self.density_list[particle], self.density_list[particle_num]) * direction * slope * mass / self.density_list[particle]
         return pressure
 
-
     def update_particle_density(self) -> None:
+        #updates the particle density and pressure
         for i in range(len(self.particle_list)):
             self.density_list.append(self.calculate_density(i))
         for i in range(len(self.particle_list)):
@@ -196,10 +195,12 @@ class Fluid_Sim:
         self.reset_grid()
 
     def particle_start_random(self) -> None:
+        #Puts particles in random positions throughout the simulation
         for _ in range(self.num_p):
             self.new_particle(random.randint(20, self.WIDTH - 20), random.randint(20, self.HEIGHT-20), 5)
 
     def particle_start_organized(self) -> None:
+        #Puts particles in an organized box in the center of the simulation box
         # Calculate the size of a perfectly square grid that would fit the particles
         grid_size = int(math.sqrt(self.num_p))
 
@@ -236,15 +237,15 @@ class Fluid_Sim:
                 extra_row_x += spacing
                 particles_in_row += 1
 
+    def update_colors(self):
+        for particle in self.particle_list:
+            particle.color = particle_prop.color_change(particle.body.velocity)
 
     def start(self) -> None:
         # runs the main loop
 
         # set up environment/walls
         self.setup_environment()
-
-        #setting the gravity
-        #self.space.gravity = (0, 981)
 
         #create the particle grid
         self.particle_start_organized()
@@ -256,6 +257,7 @@ class Fluid_Sim:
         while self.run:
             self.update_new_frame()
             self.update_grid()
+            self.update_colors()
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.run = False
@@ -267,7 +269,7 @@ class Fluid_Sim:
                     for i in range(len(self.particle_list)):
                         self.particle_list[i].color = (255, 0, 0, 100)
                         if abs(x - self.particle_list[i].body.position[0] + 20) < 10 and abs(y - self.particle_list[i].body.position[1] + 20) < 10:
-                            print(i, self.density_list[i])
+                            print(i, self.density_list[i], math.sqrt(self.particle_list[i].body.velocity[0] ** 2 + self.particle_list[i].body.velocity[1] ** 2))
                     for grid in self.grids_to_search(self.get_current_grid(x, y)):
                         for i in self.grid_dict[grid]:
                             self.particle_list[i].color = (0, 255, 0, 100)
