@@ -10,7 +10,7 @@ import random
 
 class Fluid_Sim:
     #Contains the main loop and the fluid simulation in general
-    def __init__(self, num_p: int = 400, width: int = 640, height: int = 1040, fps: int = 60):
+    def __init__(self, num_p: int = 200, width: int = 640, height: int = 1040, fps: int = 60):
         # initialize pygame
         pygame.init()
         self.grid_size = 50
@@ -68,8 +68,8 @@ class Fluid_Sim:
             body = pymunk.Body(body_type=pymunk.Body.STATIC)
             body.position = pos
             shape = pymunk.Poly.create_box(body, size)
-            shape.elasticity = 0.7
-            shape.friction = 0.7
+            shape.elasticity = 0.5
+            shape.friction = 0.5
             self.space.add(body, shape)
 
     def new_particle(self, x: int, y: int, radius: int) -> pymunk.Circle:
@@ -79,9 +79,9 @@ class Fluid_Sim:
         shape = pymunk.Circle(body, radius)
         shape.mass = 100
         shape.color = (255, 0, 0, 100)
-        shape.elasticity = 0.7
-        shape.friction = 0.7
-        shape.filter = pymunk.ShapeFilter(categories = 1, mask = pymunk.ShapeFilter.ALL_MASKS() ^ 1)
+        shape.elasticity = 0.5
+        shape.friction = 0.5
+        #shape.filter = pymunk.ShapeFilter(categories = 1, mask = pymunk.ShapeFilter.ALL_MASKS() ^ 1)
         self.space.add(body, shape)
         self.particle_list.append(shape)
         return shape
@@ -143,15 +143,12 @@ class Fluid_Sim:
 
     def calculate_density(self, particle_num: int) -> float:
         density = 0
-        count = 0
         search_grids = self.grids_to_search(self.grid_list[particle_num])
         mass = 1000
         #print(particle_num, search_grids)
-        start_time = time.time()
+        #start_time = time.time()
         for grid in search_grids:
             for particle in self.grid_dict[grid]:
-                #if count == 0: print("yar")
-                count = 1
                 distance = particle_prop.distance(self.particle_list[particle], self.particle_list[particle_num])
                 influence = particle_prop.smoothing_function(float(self.grid_size), distance)
 
@@ -180,13 +177,8 @@ class Fluid_Sim:
         for i in range(len(self.particle_list)):
             self.density_list.append(self.calculate_density(i))
         for i in range(len(self.particle_list)):
-            lister = list(self.particle_list[i].body.velocity)
-            pressureX, pressureY = self.calculate_pressure(i)
-            lister[0] += pressureX / self.density_list[i]
-            lister[1] += pressureY / self.density_list[i]
-
-            vel_tuple = tuple(lister)
-            self.particle_list[i].body.velocity = vel_tuple
+            pressure = self.calculate_pressure(i)
+            self.particle_list[i].body.velocity += pressure
 
     def reset(self) -> None:
         #reset the simulation back to its starting positions
@@ -195,7 +187,6 @@ class Fluid_Sim:
 
         self.particle_list = []
         self.reset_grid()
-        self.particle_start()
 
     def update_new_frame(self) -> None:
         #basically the update call
@@ -204,10 +195,46 @@ class Fluid_Sim:
         pygame.display.update()
         self.reset_grid()
 
-    def particle_start(self) -> None:
+    def particle_start_random(self) -> None:
         for _ in range(self.num_p):
             self.new_particle(random.randint(20, self.WIDTH - 20), random.randint(20, self.HEIGHT-20), 5)
 
+    def particle_start_organized(self) -> None:
+        # Calculate the size of a perfectly square grid that would fit the particles
+        grid_size = int(math.sqrt(self.num_p))
+
+        # Calculate remaining particles that won't fit in the perfect square
+        remaining = self.num_p - (grid_size * grid_size)
+
+        # Calculate particle spacing (assuming radius is the space between particles)
+        spacing = self.radius * 5
+
+        # Calculate starting position to center the grid
+        start_x = (self.WIDTH - (grid_size * spacing)) / 2 + self.radius
+        start_y = (self.HEIGHT - (grid_size * spacing)) / 2 + self.radius
+
+        # Create the main square grid
+        for row in range(grid_size):
+            for col in range(grid_size):
+                x = start_x + (col * spacing)
+                y = start_y + (row * spacing)
+                self.new_particle(x, y, self.radius)
+
+        # Handle remaining particles by adding them as additional rows on top
+        if remaining > 0:
+            extra_row_y = start_y - spacing
+            extra_row_x = start_x
+            particles_in_row = 0
+
+            for i in range(remaining):
+                if particles_in_row >= grid_size:
+                    extra_row_y -= spacing
+                    particles_in_row = 0
+                    extra_row_x = start_x
+
+                self.new_particle(extra_row_x, extra_row_y, self.radius)
+                extra_row_x += spacing
+                particles_in_row += 1
 
 
     def start(self) -> None:
@@ -220,7 +247,7 @@ class Fluid_Sim:
         #self.space.gravity = (0, 981)
 
         #create the particle grid
-        self.particle_start()
+        self.particle_start_organized()
 
         #setting up grid dictionary
         self.reset_grid()
@@ -249,6 +276,10 @@ class Fluid_Sim:
                         self.pause()
                     if event.key == pygame.K_z:
                         self.reset()
+                        self.particle_start_random()
+                    if event.key == pygame.K_x:
+                        self.reset()
+                        self.particle_start_organized()
             #self.pause()
 
             self.space.step(self.dt)
@@ -258,6 +289,6 @@ class Fluid_Sim:
 
 
 if __name__ == "__main__":
-    fluid = Fluid_Sim()
+    fluid = Fluid_Sim(400)
     fluid.start()
 

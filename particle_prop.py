@@ -44,8 +44,8 @@ def angle_ratio(shape1: pymunk.Circle, shape2: pymunk.Circle) -> tuple[float, fl
     return 1/total * x_mult, slope/total * y_mult
 
 def density_to_pressure(density: float) -> float:
-    target_density = 0.7
-    pressure_multiplier = 5000
+    target_density = 1
+    pressure_multiplier = 10000
     dError = density - target_density
     pressure = dError * pressure_multiplier
     return pressure
