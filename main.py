@@ -15,6 +15,7 @@ class Fluid_Sim:
         pygame.init()
         self.grid_size = 50
         self.radius = 5
+        self.interact = False
 
         #set the number of particles in the simulation
         self.num_p = num_p
@@ -171,6 +172,14 @@ class Fluid_Sim:
                     pressure += particle_prop.shared_pressure(self.density_list[particle], self.density_list[particle_num]) * direction * slope * mass / self.density_list[particle]
         return pressure
 
+    def interaction_pressure(self, x: int, y: int) -> None:
+        for grid in self.grids_to_search(self.get_current_grid(x, y)):
+            for i in self.grid_dict[grid]:
+                distance = math.sqrt((self.particle_list[i].body.position[0] - x) ** 2 + (self.particle_list[i].body.position[1] - y) ** 2)
+                direction = (self.particle_list[i].body.position - Vec2d(x, y)) / distance
+                slope = particle_prop.smoothing_function_derivative(distance, self.grid_size)
+                self.particle_list[i].body.velocity -= direction * slope * 10000000
+
     def update_particle_density(self) -> None:
         #updates the particle density and pressure
         for i in range(len(self.particle_list)):
@@ -243,7 +252,6 @@ class Fluid_Sim:
 
     def start(self) -> None:
         # runs the main loop
-
         # set up environment/walls
         self.setup_environment()
 
@@ -263,16 +271,10 @@ class Fluid_Sim:
                     self.run = False
                     break
                 if event.type == pygame.MOUSEBUTTONDOWN:
-                    x, y = pygame.mouse.get_pos()
-                    x -= 20
-                    y -= 20
-                    for i in range(len(self.particle_list)):
-                        self.particle_list[i].color = (255, 0, 0, 100)
-                        if abs(x - self.particle_list[i].body.position[0] + 20) < 10 and abs(y - self.particle_list[i].body.position[1] + 20) < 10:
-                            print(i, self.density_list[i], math.sqrt(self.particle_list[i].body.velocity[0] ** 2 + self.particle_list[i].body.velocity[1] ** 2))
-                    for grid in self.grids_to_search(self.get_current_grid(x, y)):
-                        for i in self.grid_dict[grid]:
-                            self.particle_list[i].color = (0, 255, 0, 100)
+                    if self.interact:
+                        self.interact = False
+                    else:
+                        self.interact = True
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_SPACE:
                         self.pause()
@@ -282,6 +284,10 @@ class Fluid_Sim:
                     if event.key == pygame.K_x:
                         self.reset()
                         self.particle_start_organized()
+            if self.interact:
+                x, y = pygame.mouse.get_pos()
+                self.interaction_pressure(x, y)
+
             #self.pause()
 
             self.space.step(self.dt)
@@ -291,6 +297,6 @@ class Fluid_Sim:
 
 
 if __name__ == "__main__":
-    fluid = Fluid_Sim(400)
+    fluid = Fluid_Sim(600)
     fluid.start()
 
